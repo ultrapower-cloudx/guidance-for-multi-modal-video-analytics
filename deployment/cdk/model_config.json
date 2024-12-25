@@ -1,10 +1,17 @@
 {
   "analytics_model": [
+    "us.amazon.nova-lite-v1:0",
     "anthropic.claude-3-haiku-20240307-v1:0",
-    "us.meta.llama3-2-11b-instruct-v1:0",
-    "us.meta.llama3-2-90b-instruct-v1:0"
+    "us.meta.llama3-2-11b-instruct-v1:0"
   ],
-  "postprocess_model": "anthropic.claude-3-haiku-20240307-v1:0",
-  "vqa_model": "anthropic.claude-3-haiku-20240307-v1:0",
-  "opensearch_preprocess_model": "anthropic.claude-3-haiku-20240307-v1:0"
+  "brconnector_model": [
+    "claude-3-haiku",
+    "llama3-2-11b"
+  ],
+  "brconnector_enable": "false",
+  "brconnector_endpoint": "placeholder",
+  "brconnector_key": "placeholder",
+  "postprocess_model": "us.amazon.nova-lite-v1:0",
+  "vqa_model": "us.amazon.nova-lite-v1:0",
+  "opensearch_preprocess_model": "us.amazon.nova-lite-v1:0"
 }

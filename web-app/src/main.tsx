@@ -6,7 +6,7 @@ import ReactDOM from "react-dom/client";
 import { Provider } from "react-redux";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "regenerator-runtime/runtime";
-import { isLoginWithCognito } from "./aws-config";
+import { isLoginWithCognito, isLoginWithSSO } from "./aws-config";
 import { Storage } from "./common/helpers/storage";
 import userReduxStore from "./common/helpers/store";
 import ErrorPage from "./components/ErrorPage";
@@ -26,11 +26,13 @@ Storage.applyTheme(theme);
 const router = createBrowserRouter([
   {
     path: "/",
-    element: isLoginWithCognito ? (
-      <Layout.AuthWithCognito />
-    ) : (
-      <Layout.CustomizedAuth />
-    ),
+    element:
+      isLoginWithCognito || isLoginWithSSO ? (
+        <Layout.AuthWithCognito />
+      ) : (
+        // <Layout.CustomizedAuth />
+        <Layout.Base />
+      ),
     errorElement: <ErrorPage />,
     children: [
       { path: "/login", element: <div>Login Page</div> },

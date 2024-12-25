@@ -24,7 +24,7 @@ def run_multi_modal_prompt(bedrock_runtime, model_id, messages, system_prompt, i
         if "llama" not in model_id.lower():
             additional_params = {"additionalModelRequestFields": additionalModelFields} 
             
-        response = bedrock_runtime.converse(modelId=model_id, messages=messages, system=system_prompt, inferenceConfig=inferenceConfig, **additional_params)
+        response = bedrock_runtime.converse(modelId=model_id, messages=messages, system=system_prompt, inferenceConfig=inferenceConfig)
         # response_body = response["output"]["message"]["content"][0]["text"]
         
         t1 = time.time()

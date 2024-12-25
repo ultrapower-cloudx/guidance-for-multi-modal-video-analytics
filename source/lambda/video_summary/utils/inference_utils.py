@@ -47,13 +47,14 @@ def call_bedrock_inference(model_id,
         }
     )
 
+    system = [{'text':system_prompts}]
+
     # Send the message.
     response = bedrock_client.converse(
         modelId=model_id,
         messages=messages,
-        system=system_prompts,
-        inferenceConfig=inference_config,
-        **additional_params
+        system=system,
+        inferenceConfig=inference_config
     )
 
     # Log token usage.
@@ -72,7 +73,7 @@ def call_sagemaker_inference(model_id,
     
     smr_client = boto3.client("sagemaker-runtime")
     
-    prompt = "# system_prompt  \n" + system_prompts[0]["text"] + "\n===============\n # user_input  \n" + input_text
+    prompt = "# system_prompt  \n" + system_prompts + "\n===============\n # user_input  \n" + input_text
 
     content = [{"type": "text", "text": prompt}]
     

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from dynamodb_utils import query_dynamodb, create_xml
+from brconnector_utils import brconnect_with_tools
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
@@ -64,10 +65,6 @@ class ToolsList:
 toolConfig = {'tools': [],
 'toolChoice': {
     'auto': {},
-    #'any': {},
-    #'tool': {
-    #    'name': 'get_weather'
-    #}
     }
 }
 
@@ -130,17 +127,22 @@ toolConfig['tools'].append({
 })
 
 #Function for caling the Bedrock Converse API...
-def converse_with_tools(model_id, messages, system='', toolConfig=toolConfig):
-    response = bedrock.converse(
-        modelId=model_id,
-        system=system,
-        messages=messages,
-        toolConfig=toolConfig
-    )
+def converse_with_tools(model_id, prompt, system, tool_config):
+    if os.environ.get('BRC_ENABLE') == 'Y':
+        response = brconnect_with_tools(model_id, prompt, system, tool_config)
+    else:
+        system_prompts = [{'text':system}]
+        converse_response = bedrock.converse(
+            modelId=model_id,
+            system=system_prompts,
+            messages=prompt,
+            toolConfig=tool_config
+        )
+        response = converse_response['output']
     return response
 
 #Function for orchestrating the conversation flow...
-def converse(model_id, prompt, system=''):
+def converse(model_id, prompt, system, tool_config):
     #Add the initial prompt:
     messages = []
     messages.append(
@@ -153,16 +155,19 @@ def converse(model_id, prompt, system=''):
             ]
         }
     )
-    print(f"\n{datetime.now().strftime('%H:%M:%S')} - Initial prompt:\n{json.dumps(messages, indent=2)}")
+    print(f"\n{datetime.now().strftime('%H:%M:%S')} - Initial prompt:\n{messages=}")
 
     #Invoke the model the first time:
-    output = converse_with_tools(model_id, messages, system)
-    print(f"\n{datetime.now().strftime('%H:%M:%S')} - Output so far:\n{json.dumps(output['output'], indent=2, ensure_ascii=False)}")
+    output = converse_with_tools(model_id, messages, system, tool_config)
+    print('output is', output)
+    print(f"\n{datetime.now().strftime('%H:%M:%S')} - Output so far:\n{output}")
 
     #Add the intermediate output to the prompt:
-    messages.append(output['output']['message'])
+    messages.append(output['message'])
 
-    function_calling = next((c['toolUse'] for c in output['output']['message']['content'] if 'toolUse' in c), None)
+    function_calling = next((c['toolUse'] for c in output['message']['content'] if 'toolUse' in c), None)
+
+    print('function_call is ',function_calling)
 
     #Check if function calling is triggered:
     if function_calling:
@@ -197,12 +202,12 @@ def converse(model_id, prompt, system=''):
                 ]
             }
         )
-        #print(f"\n{datetime.now().strftime('%H:%M:%S')} - Messages so far:\n{json.dumps(messages, indent=2)}")
+        print(f"\n{datetime.now().strftime('%H:%M:%S')} - Messages so far:\n{messages}")
 
         #Invoke the model one more time:
-        output = converse_with_tools(model_id, messages, system)
-        print(f"\n{datetime.now().strftime('%H:%M:%S')} - Final output:\n{json.dumps(output['output'], indent=2, ensure_ascii=False)}\n")
-    return output['output']
+        output = converse_with_tools(model_id, messages, system, tool_config)
+        print(f"\n{datetime.now().strftime('%H:%M:%S')} - Final output:\n{output}\n")
+    return output
 
 def lambda_handler(event, context):
     
@@ -214,12 +219,12 @@ def lambda_handler(event, context):
     model_name = os.environ.get('MODEL_NAME')
     
     if follow_front is None and model_name is None:
-        model_id = event['model_id']
+        model_id = event['model']
     elif follow_front and follow_front.upper() == 'Y':
-        model_id = event['model_id']
+        model_id = event['model']
     else:
-        model_id = model_name or event['model_id']
-        
+        model_id = model_name or event['model']
+
     print(f'Using modelId: {model_id}')
     
     input_frame_result = query_dynamodb(user_id, task_id)
@@ -232,15 +237,18 @@ def lambda_handler(event, context):
     final_input = prompt_prefix + record + postprocess_prompt
 
     prompts = [final_input]
+    system = "You're provided with a tool that can send mail to receiver person or send command to device or do nothing; \
+                only use the tool if required. Don't make reference to the tools in your final answer."
     result =""
     for prompt in prompts:
         response = converse(
             model_id = model_id,
-            system = [{"text": "You're provided with a tool that can send mail to receiver person or send command to device or do nothing; \
-                only use the tool if required. Don't make reference to the tools in your final answer."}],
-            prompt = prompt
+            prompt = prompt,
+            system = system,
+            tool_config = toolConfig
     )
         result = response
+
     output_result = result['message']['content'][0]['text']
     return {
         'statusCode': 200,

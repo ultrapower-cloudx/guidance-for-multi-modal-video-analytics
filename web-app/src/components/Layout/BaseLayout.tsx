@@ -5,7 +5,13 @@ import { Toaster } from "react-hot-toast";
 import { useDispatch } from "react-redux";
 import { Outlet, UIMatch, useMatches, useNavigate } from "react-router-dom";
 import useWebSocket from "react-use-websocket";
-import { isLoginWithCognito, WEBSOCKET_URL } from "../../aws-config";
+import {
+  DEFAULT_USER,
+  isLoginWithCognito,
+  isLoginWithNothing,
+  isLoginWithSSO,
+  WEBSOCKET_URL,
+} from "../../aws-config";
 import { CustomContext } from "../../common/helpers/context";
 import { ActionType, UserInfo } from "../../common/helpers/store";
 import { useNavigationPanelState } from "../../common/hooks/use-navigation-panel-state";
@@ -26,7 +32,7 @@ const BaseLayout: React.FC = () => {
 
   const dispatch = useDispatch();
   useEffect(() => {
-    if (isLoginWithCognito) {
+    if (isLoginWithCognito || isLoginWithSSO) {
       (async () => {
         const user = await Auth.currentUserInfo();
         console.log({ user });
@@ -43,10 +49,11 @@ const BaseLayout: React.FC = () => {
         };
         dispatch({ type: ActionType.UpdateUserInfo, state: loginUser });
       })();
-    } else {
+    } else if (isLoginWithNothing) {
+      // TODO: further customisation can be done here when no login is required
       const loginUser: UserInfo = {
-        userId: import.meta.env.VITE_DEFAULT_USER || "",
-        displayName: import.meta.env.VITE_DEFAULT_USER || "",
+        userId: DEFAULT_USER || "",
+        displayName: DEFAULT_USER || "",
         loginExpiration: +new Date() + 18000000,
         isLogin: true,
       };

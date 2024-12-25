@@ -1,7 +1,9 @@
 import boto3
 import logging
 import json
+import os
 from botocore.exceptions import ClientError
+from utils.brconnector_utils import BRClient
 
 bedrock_runtime = boto3.client(service_name='bedrock-runtime')
 
@@ -111,7 +113,8 @@ def call_bedrock_inference(chat_history,system_message, prompt,model_id):
     "temperature": 0.5, 
     "topP": 1
     }
-    
+
+
     # additional_model_fields = {"top_k": 200}
 
     answer,input_tokens,output_tokens=bedrock_conversation(bedrock_runtime, model_id, chat_history,
@@ -153,9 +156,50 @@ def call_sagemaker_inference(chat_history,system_message, prompt,model_id):
 
     return answer, input_tokens, output_tokens
 
+def call_brclient_inference(chat_history,system_message, prompt,model_id):
+
+    chat_history.append({"role": "user",
+            "content": prompt})
+
+    system = system_message
+
+    inputs = {
+        "messages": chat_history,
+        "max_tokens": 2048,
+        "temperature": 0.5, 
+        "top_k": 200
+      }
+
+
+    secret_client = boto3.client('secretsmanager')
+    try:
+        get_secret_value_response = secret_client.get_secret_value(
+            SecretId='brconnector-apikey'
+        )
+    except Exception as e:
+        print(f"error in create opensearch client, exception={e}")
+        raise e
+    brc_api_key = get_secret_value_response['SecretString']
+    
+    brclient = BRClient(api_key=brc_api_key)  
+    response = brclient.chat_completion(
+        model_id=model_id,
+        system_prompts=system,
+        input_text=chat_history
+        )
+    
+    answer = response["choices"][0]["message"]["content"]
+    input_tokens = response["usage"]["prompt_tokens"]
+    output_tokens = response["usage"]["completion_tokens"]
+
+    return answer, input_tokens, output_tokens
+
 def call_inference(**kwargs):
     if kwargs['model_id'].lower().startswith("sagemaker"):
         return call_sagemaker_inference(**kwargs)
+    elif os.environ.get('BRC_ENABLE') == 'Y':
+        brc_response = call_brclient_inference(**kwargs)
+        return brc_response
     else:
         return call_bedrock_inference(**kwargs)
 

@@ -4,6 +4,7 @@ import json
 import logging
 from utils.dynamodb_utils import query_dynamodb, create_xml
 from utils.inference_utils import call_bedrock_inference, call_sagemaker_inference
+from utils.brconnector_utils import BRClient
 from botocore.exceptions import ClientError
 import os
 
@@ -30,6 +31,20 @@ def invoke_notify_lambda(notify_lambda_name, notify_request):
 def call_inference(**kwargs):
     if kwargs['model_id'].lower().startswith("sagemaker"):
         return call_sagemaker_inference(**kwargs)
+    elif os.environ.get('BRC_ENABLE') == 'Y':
+        secret_client = boto3.client('secretsmanager')
+        try:
+            get_secret_value_response = secret_client.get_secret_value(
+                SecretId='brconnector-apikey'
+            )
+        except Exception as e:
+            print(f"error in create opensearch client, exception={e}")
+            raise e
+
+        brc_api_key = get_secret_value_response['SecretString']
+        brclient = BRClient(api_key=brc_api_key)
+        brc_response = brclient.chat_completion(**kwargs)
+        return brc_response
     else:
         return call_bedrock_inference(**kwargs)
 
@@ -38,6 +53,7 @@ def lambda_handler(event, context):
     logger.info('video summary: {}'.format(event))
 
     model_id = event.get('model_id', "anthropic.claude-3-haiku-20240307-v1:0")
+
     temperature = event.get('temperature', 0.5)
     top_p = event.get('top_p', 1.0)
     top_k = event.get('top_k', 250)
@@ -57,8 +73,7 @@ def lambda_handler(event, context):
     
     input_text = prompt_prefix + record + postprocess_prompt
 
-    system_prompts = [{"text": "You're an assisstant for video content summary."}]
-    
+    system_prompts = "You're an assisstant for video content summary, pls summarize the images description from videos frames in brief sentences."
     result = call_inference(model_id=model_id, 
         system_prompts=system_prompts, 
         input_text=input_text, 
@@ -66,7 +81,7 @@ def lambda_handler(event, context):
         top_p=top_p, 
         top_k=top_k, 
         max_tokens=max_tokens)
-
+        
     output_message = result
     print(output_message)
     

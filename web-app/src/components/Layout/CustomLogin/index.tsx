@@ -7,6 +7,7 @@ import {
   useTheme,
 } from "@aws-amplify/ui-react";
 import { useState } from "react";
+import { DEFAULT_USER } from "../../../aws-config";
 import { alertMsg } from "../../../common/helpers/tools";
 import BaseLayout from "../BaseLayout";
 import "./style.scss";
@@ -35,7 +36,7 @@ export default function CustomLogin() {
       return;
     }
     if (
-      userName !== import.meta.env.VITE_DEFAULT_USER ||
+      userName !== DEFAULT_USER ||
       password !== import.meta.env.VITE_DEFAULT_PASSWORD
     ) {
       alertMsg("Username or password is error", "warning");

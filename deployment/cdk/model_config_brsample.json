@@ -1,0 +1,18 @@
+{
+    "analytics_model": [
+      "amazon.nova-lite-v1:0",
+      "anthropic.claude-3-haiku-20240307-v1:0",
+      "us.meta.llama3-2-11b-instruct-v1:0"
+    ],
+    "brconnector_model": [
+      "claude-3-haiku",
+      "llama3-2-11b"
+    ],
+    "brconnector_enable": "true",
+    "brconnector_endpoint": "https://xxxx.cloudfront.net/v1",
+    "brconnector_key": "br-xxxxx",
+    "postprocess_model": "claude-3-haiku",
+    "vqa_model": "claude-3-haiku",
+    "opensearch_preprocess_model": "claude-3-haiku"
+  }
+  

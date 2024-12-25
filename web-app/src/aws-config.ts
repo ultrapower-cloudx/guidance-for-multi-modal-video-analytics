@@ -6,20 +6,18 @@ export const WEBSOCKET_URL = import.meta.env.VITE_WEBSOCKET_URL;
 export const HTTP_URL = import.meta.env.VITE_HTTP_URL;
 
 export const DEFAULT_STREAM_NAME = import.meta.env.VITE_DEFAULT_STREAM_NAME;
+export const DEFAULT_USER = "multimodal-grc-cn-user";
 
-export const isLoginWithCognito = import.meta.env.VITE_LOGIN_TYPE === "Cognito";
+export const loginType = import.meta.env.VITE_LOGIN_TYPE;
+export const isLoginWithCognito = loginType === "Cognito";
+export const isLoginWithSSO = loginType === "SSO";
+export const isLoginWithNothing = !isLoginWithCognito && !isLoginWithSSO;
 
-export const useSSOLogin =
-  import.meta.env.VITE_USE_SSO_LOGIN === "true" ? true : false;
-
-console.info({
-  VITE_LOGIN_TYPE: import.meta.env.VITE_LOGIN_TYPE,
-  VITE_USE_SSO_LOGIN: import.meta.env.VITE_USE_SSO_LOGIN,
-});
+console.info({ loginType, isLoginWithSSO });
 
 export const SSO_FED_AUTH_PROVIDER = import.meta.env.VITE_SSO_FED_AUTH_PROVIDER;
 
-const extraConfigUseSSOLogin = useSSOLogin
+const extraConfigUseSSOLogin = isLoginWithSSO
   ? {
       mandatorySignIn: false,
       authenticationFlowType: "USER_SRP_AUTH",

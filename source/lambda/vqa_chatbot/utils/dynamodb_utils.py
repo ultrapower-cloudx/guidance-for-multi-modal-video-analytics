@@ -72,7 +72,7 @@ def get_chat_history_db(chat_histories, cutoff, model_name):
     current_chat=[]
     chat_hist=chat_histories['Item']['messages'][-cutoff:] 
     for d in chat_hist:
-        if model_name.lower().startswith("sagemaker"):
+        if model_name.lower().startswith("sagemaker") or os.environ.get('BRC_ENABLE') == 'Y':
             current_chat.append({'role': 'user', 'content': d['user']})
             current_chat.append({'role': 'assistant', 'content': d['assistant']})
         else:

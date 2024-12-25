@@ -11,6 +11,7 @@ import shutil
 from decimal import Decimal
 from datetime import datetime
 from multimodal_config import call_claude3_img, call_sagemaker_llava
+from brc_config import BRClient
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -155,6 +156,19 @@ def put_item_to_dynamodb(table, user_id, task_id, task_object, timestamp, folder
 def call_inference(**kwargs):
     if kwargs['model_id'].lower().startswith("sagemaker"):
         return call_sagemaker_llava(**kwargs)
+    elif os.environ.get('BRC_ENABLE') == 'Y':
+        secret_client = boto3.client('secretsmanager')
+        try:
+            get_secret_value_response = secret_client.get_secret_value(
+                SecretId='brconnector-apikey'
+            )
+        except Exception as e:
+            print(f"error in create opensearch client, exception={e}")
+            raise e
+        brc_api_key = get_secret_value_response['SecretString']
+        brclient = BRClient(api_key=brc_api_key)
+        brc_response = brclient.chat_completion_with_images(**kwargs)
+        return brc_response
     else:
         return call_claude3_img(**kwargs)
 

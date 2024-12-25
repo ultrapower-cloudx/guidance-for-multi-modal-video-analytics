@@ -12,13 +12,13 @@ stack_name = 'MultiModalVideoAnalyticsWebAppStack'
 response = cloudformation.describe_stacks(StackName=stack_name)
 outputs = response['Stacks'][0]['Outputs']
 
-# domain_endpoint = [output['OutputValue'] for output in outputs if output['OutputKey'] == 'opsdomain'][0]
+domain_endpoint = [output['OutputValue'] for output in outputs if output['OutputKey'] == 'opsdomain'][0]
 api_id = [output['OutputValue'] for output in outputs if output['OutputKey'] == 'websocketapi'][0]
 table_name = [output['OutputValue'] for output in outputs if output['OutputKey'] == 'promptdatabase'][0]
 lambda_name = [output['OutputValue'] for output in outputs if output['OutputKey'] == 'maillambda'][0]
 
 email_address = input("Enter your postprocess notification email address (or press Enter to skip): ")
-'''
+
 # 1.modify opensearch
 
 secret_client = boto3.client('secretsmanager')
@@ -85,7 +85,7 @@ try:
 except Exception as e:
     print(f"error in creating index={index_name}, exception={e}")
     
-'''    
+
 # 2.modify api gateway
 
 try:

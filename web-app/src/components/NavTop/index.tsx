@@ -6,7 +6,12 @@ import { Mode } from "@cloudscape-design/global-styles";
 import { Auth } from "aws-amplify";
 import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { APP_LOGO, APP_TITLE, isLoginWithCognito } from "../../aws-config";
+import {
+  APP_LOGO,
+  APP_TITLE,
+  isLoginWithCognito,
+  isLoginWithSSO,
+} from "../../aws-config";
 import { CHATBOT_NAME } from "../../common/constant/constants";
 import { Storage } from "../../common/helpers/storage";
 import { ActionType, UserInfo, UserState } from "../../common/helpers/store";
@@ -31,7 +36,7 @@ export default function NavTop() {
     detail: ButtonDropdownProps.ItemClickDetails;
   }) => {
     if (detail.id === "signout") {
-      if (isLoginWithCognito) {
+      if (isLoginWithCognito || isLoginWithSSO) {
         Auth.signOut().then();
       } else {
         const user: UserInfo = { ...userInfo, isLogin: false };

@@ -2,11 +2,13 @@ import requests
 import boto3
 import json
 from opensearchpy import OpenSearch, RequestsHttpConnection
+from brconnector_utils import BRClient
 from requests.auth import HTTPBasicAuth
 from pathlib import Path
 import cohere_aws
 import base64
 import os
+from brconnector_utils import BRClient
 from botocore.exceptions import ClientError
 from urllib.parse import urlparse
 
@@ -245,5 +247,19 @@ def call_sagemaker_inference(model_id,input_text):
 def call_inference(**kwargs):
     if kwargs['model_id'].lower().startswith("sagemaker"):
         return call_sagemaker_inference(**kwargs)
+    elif os.environ.get('BRC_ENABLE') == 'Y':
+        secret_client = boto3.client('secretsmanager')
+        try:
+            get_secret_value_response = secret_client.get_secret_value(
+                SecretId='brconnector-apikey'
+            )
+        except Exception as e:
+            print(f"error in create opensearch client, exception={e}")
+            raise e
+
+        brc_api_key = get_secret_value_response['SecretString']
+        brclient = BRClient(api_key=brc_api_key)
+        brc_response = brclient.chat_completion(**kwargs)
+        return brc_response
     else:
         return call_bedrock_inference(**kwargs)

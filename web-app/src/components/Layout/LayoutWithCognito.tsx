@@ -16,7 +16,7 @@ import {
   APP_VERSION,
   awsConfig,
   SSO_FED_AUTH_PROVIDER,
-  useSSOLogin,
+  isLoginWithSSO,
 } from "../../aws-config";
 import BaseLayout from "./BaseLayout";
 import "./layout-with-cognito.css";
@@ -35,9 +35,9 @@ export default function LayoutWithCognito() {
 
   return (
     <Authenticator
-      hideSignUp={useSSOLogin}
+      hideSignUp={isLoginWithSSO}
       components={
-        !useSSOLogin
+        !isLoginWithSSO
           ? {
               Header() {
                 const { tokens } = useTheme();

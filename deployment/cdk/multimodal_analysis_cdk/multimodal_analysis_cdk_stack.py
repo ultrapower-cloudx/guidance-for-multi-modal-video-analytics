@@ -27,7 +27,8 @@ from aws_cdk import (
     Aws,
     Size,
     Environment,
-    Tags
+    Tags,
+    SecretValue
 )
 from constructs import Construct
 import os
@@ -108,7 +109,8 @@ class MultiModalVideoAnalyticsStorageStack(Stack):
             # one lowercase letter, one number, and one special character.
             password_length=12
           ),
-          secret_name = "opensearch-master-user"
+          secret_name = "opensearch-master-user",
+          removal_policy=RemovalPolicy.DESTROY
         )
 
         #XXX: aws cdk elastsearch example - https://github.com/aws/aws-cdk/issues/2873
@@ -149,7 +151,17 @@ class MultiModalVideoAnalyticsLambdaStack(Stack):
         with open('model_config.json', 'r') as config_file:
             model_config = json.load(config_file)
         
+        self.brconnect_secret = secretmng.Secret(
+            self,
+            "BRConnectorApiKey",
+            secret_string_value = SecretValue.unsafe_plain_text(model_config.get('brconnector_key','placeholder')),
+            secret_name = "brconnector-apikey",
+            removal_policy=RemovalPolicy.DESTROY
+        )
+        
         # 获取vqa_model的值
+        brc_enable = 'Y' if model_config.get('brconnector_enable', '') == 'true' else 'N'
+        brc_endpoint = model_config.get('brconnector_endpoint', '')
         vqa_model = model_config.get('vqa_model', '')
         postprocess_model = model_config.get('postprocess_model', '')
         opensearch_preprocess_model = model_config.get('opensearch_preprocess_model', '')
@@ -158,7 +170,7 @@ class MultiModalVideoAnalyticsLambdaStack(Stack):
         self.layer_boto3 = lambda_.LayerVersion(
             self, "boto3",
             code=lambda_.Code.from_asset("../../assets/layer/boto3-python-layer.zip"),
-            compatible_runtimes=[lambda_.Runtime.PYTHON_3_9]
+            compatible_runtimes=[lambda_.Runtime.PYTHON_3_9,lambda_.Runtime.PYTHON_3_11]
         )
         self.layer_ffmpeg = lambda_.LayerVersion(
             self, "ffmpeg",
@@ -302,6 +314,8 @@ class MultiModalVideoAnalyticsLambdaStack(Stack):
                 "PREPROCESS":"N",
                 "FOLLOW_FRONT": "N",
                 "MODEL_NAME": opensearch_preprocess_model,
+                "BRC_ENABLE": brc_enable,
+                "BRC_ENDPOINT": brc_endpoint,
 
             }
         )
@@ -317,7 +331,9 @@ class MultiModalVideoAnalyticsLambdaStack(Stack):
             layers=[self.layer_boto3],
             environment={
                 "NotifyLambda": self.websocket_notify.function_name,
-                "RESULT_DYNAMODB": storage_stack.dynamo_result.table_name
+                "RESULT_DYNAMODB": storage_stack.dynamo_result.table_name,
+                "BRC_ENABLE": brc_enable,
+                "BRC_ENDPOINT": brc_endpoint,
             }
         )
         self.video_summary.node.add_dependency(storage_stack.dynamo_result, self.websocket_notify, self.layer_boto3)
@@ -336,6 +352,8 @@ class MultiModalVideoAnalyticsLambdaStack(Stack):
                 "OPS_INGEST_LAMBDA": self.opensearch_ingest.function_name,
                 "RESULT_BUCKET": storage_stack.s3_bucket_information.bucket_name,
                 "RESULT_DYNAMODB": storage_stack.dynamo_result.table_name,
+                "BRC_ENABLE": brc_enable,
+                "BRC_ENDPOINT": brc_endpoint,
             }
         )
         self.video_analysis.node.add_dependency(
@@ -409,6 +427,8 @@ class MultiModalVideoAnalyticsLambdaStack(Stack):
                 "RESULT_DYNAMODB": storage_stack.dynamo_result.table_name,
                 "FOLLOW_FRONT": "N",
                 "MODEL_NAME": vqa_model,
+                "BRC_ENABLE": brc_enable,
+                "BRC_ENDPOINT": brc_endpoint,
             }
         )
         self.vqa_chatbot.node.add_dependency(storage_stack.dynamo_chat_history, storage_stack.dynamo_result)
@@ -446,7 +466,9 @@ class MultiModalVideoAnalyticsLambdaStack(Stack):
                 "MODEL_NAME": postprocess_model,
                 "RESULT_DYNAMODB": storage_stack.dynamo_result.table_name,
                 "TOOL_DEVICE_LAMBDA": self.agent_tool_send_device_mqtt.function_name,
-                "TOOL_NOTIFICATION_LAMBDA": self.agent_tool_send_notification.function_name
+                "TOOL_NOTIFICATION_LAMBDA": self.agent_tool_send_notification.function_name,
+                "BRC_ENABLE": brc_enable,
+                "BRC_ENDPOINT": brc_endpoint,
             }
         )
         self.postprocess_agent.node.add_dependency(storage_stack.dynamo_result, self.agent_tool_send_device_mqtt, self.agent_tool_send_notification)
@@ -910,6 +932,51 @@ class MultiModalVideoAnalyticsWebAppStack(Stack):
             )
             self.web_app_config.node.add_dependency(self.web_app_file)
 
+            self.env_file_content = cr.AwsCustomResource(
+                self, 'EnvFileContent',
+                on_create=cr.AwsSdkCall(
+                    service='S3',
+                    action='putObject',
+                    parameters={
+                        'Bucket': self.s3_bucket_web_app.bucket_name,
+                        'Key': '.env',
+                        'Body': f'''# General configuration
+VITE_APP_VERSION=v1.3.0
+VITE_TITLE=Guidance for Multi-modal vision analytics Based on AWS
+VITE_LOGO=
+
+# Login configuration
+VITE_LOGIN_TYPE=Cognito
+
+# Cognito configuration
+VITE_COGNITO_REGION={self.region}
+VITE_COGNITO_USER_POOL_ID={self.user_pool.user_pool_id}
+VITE_COGNITO_USER_POOL_WEB_CLIENT_ID={self.app_client.user_pool_client_id}
+
+# SSO CONFIGS: info for logging in with Single-Sign-On
+VITE_SSO_FED_AUTH_PROVIDER=vite.auth.provider
+VITE_SSO_OAUTH_DOMAIN=vite-domain.auth.region.amazoncognito.com
+
+# S3 configuration  
+VITE_STORAGE_VIDEO_BUCKET={self.s3_bucket_upload.bucket_name}
+VITE_STORAGE_INFORMATION_BUCKET={self.s3_bucket_information.bucket_name}
+
+# URL configuration
+VITE_WEBSOCKET_URL={self.websocket_api.api_endpoint}/{self.dev_stage.stage_name}
+VITE_HTTP_URL=https://{api_stack.prompt_edit_api.rest_api_id}.execute-api.{self.region}.amazonaws.com/{api_stack.prompt_edit_api.deployment_stage.stage_name}
+
+# KVS configuration
+VITE_DEFAULT_STREAM_NAME=MultiModalVideoAnalytics''',
+                        'ContentType': 'text/plain'
+                    },
+                    physical_resource_id=cr.PhysicalResourceId.of('env-file')
+                ),
+                policy=cr.AwsCustomResourcePolicy.from_statements(
+                    [self.put_s3_statement]
+                )
+            )
+            self.env_file_content.node.add_dependency(self.web_app_file)
+
         cache_policy = cloudfront.CachePolicy(
             self, 'CustomCachePolicy',
             default_ttl=Duration.minutes(1),
@@ -947,5 +1014,11 @@ class MultiModalVideoAnalyticsWebAppStack(Stack):
         CfnOutput(self, "opsdomain", value=storage_stack.search_domain_endpoint, export_name="opsdomain")
         CfnOutput(self, 'opsdashboards', value=f"{storage_stack.search_domain_endpoint}/_dashboards/", export_name='opsdashboards')
         CfnOutput(self, 'mail-lambda', value=lambda_stack.agent_tool_send_notification.function_name, export_name='mail-lambda')
+        CfnOutput(self, 'analysis-lambda', value=lambda_stack.video_analysis.function_name, export_name='analysis-lambda')
+        CfnOutput(self, 'summary-lambda', value=lambda_stack.video_summary.function_name, export_name='summary-lambda')
+        CfnOutput(self, 'vqa-lambda', value=lambda_stack.vqa_chatbot.function_name, export_name='vqa-lambda')
+        CfnOutput(self, 'agent-lambda', value=lambda_stack.postprocess_agent.function_name, export_name='agent-lambda')
+        CfnOutput(self, 'retrieve-lambda', value=lambda_stack.opensearch_retrieve.function_name, export_name='retrieve-lambda')
+        CfnOutput(self, 'webapp-bucket', value=storage_stack.s3_bucket_web_app.bucket_name, export_name='webapp-bucket')
         CfnOutput(self, 'prompt-api', value=f'https://{api_stack.prompt_edit_api.rest_api_id}.execute-api.{self.region}.amazonaws.com/{api_stack.prompt_edit_api.deployment_stage.stage_name}', export_name='prompt-api')
         CfnOutput(self, "websocket-api", value=api_stack.websocket_api.api_id, export_name="websocket-api")

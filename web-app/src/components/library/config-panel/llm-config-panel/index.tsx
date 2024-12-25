@@ -14,15 +14,19 @@ import { ActionType } from "../../../../common/helpers/store";
 import "./style.scss";
 import { LLMConfigState } from "./types";
 
+const brconnectorEnabled = JSON.parse(CONFIG_JSON.brconnector_enable);
+const { analytics_model, brconnector_model } = CONFIG_JSON;
+const llmModels = brconnectorEnabled ? brconnector_model : analytics_model;
+
 export const LLMConfiguration = () => {
   const dispatch = useDispatch();
 
   const [modelId, setModelId] = useState({
-    value: CONFIG_JSON?.analytics_model[0],
+    value: llmModels[0],
   });
   const [temperature, setTemperature] = useState(0.1);
-  const [topP] = useState(1);
-  const [topK, setTopK] = useState(250);
+  const [topP, setTopP] = useState(1);
+  const [topK] = useState(250);
   const [maximumLength, setMaximumLength] = useState(2048);
 
   useEffect(() => {
@@ -46,7 +50,7 @@ export const LLMConfiguration = () => {
     <ExpandableSection
       defaultExpanded
       variant="footer"
-      headerText="Claude3 Configuration"
+      headerText="LLM Configuration"
     >
       <SpaceBetween size="l">
         <FormField label="Model" description="Select a model for analytics">
@@ -57,7 +61,7 @@ export const LLMConfiguration = () => {
               // @ts-expect-error
               setModelId(detail.selectedOption)
             }
-            options={CONFIG_JSON.analytics_model.map((v) => ({ value: v }))}
+            options={llmModels.map((v) => ({ label: v, value: v }))}
           />
         </FormField>
 
@@ -91,7 +95,7 @@ export const LLMConfiguration = () => {
           </div>
         </FormField>
 
-        {/* <FormField label="Top P">
+        <FormField label="Top P">
           <div className="input-wrapper">
             <Input
               type="number"
@@ -119,9 +123,9 @@ export const LLMConfiguration = () => {
               />
             </div>
           </div>
-        </FormField> */}
+        </FormField>
 
-        <FormField label="Top K">
+        {/* <FormField label="Top K">
           <div className="input-wrapper">
             <Input
               type="number"
@@ -148,7 +152,7 @@ export const LLMConfiguration = () => {
               />
             </div>
           </div>
-        </FormField>
+        </FormField> */}
 
         <FormField label="Maximum Length">
           <div className="input-wrapper">
